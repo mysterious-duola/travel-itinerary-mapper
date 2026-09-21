@@ -1,0 +1,1639 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{TITLE}}</title>
+{{AMAP_SECURITY_SCRIPT}}
+<script>
+(function(){
+  var AMAP_KEY = "{{AMAP_KEY}}";
+  if (!AMAP_KEY) { window.__AMAP_NOKEY = true; return; }
+  function hasWebGL(){ try { var c = document.createElement('canvas'); return !!(window.WebGLRenderingContext && (c.getContext('webgl') || c.getContext('experimental-webgl'))); } catch (e) { return false; } }
+  /* 2.0 基于 WebGL；浏览器拿不到 WebGL 上下文时 new AMap.Map 会同步抛错 → 自动降级 1.4.15（Canvas 渲染，无需 jscode） */
+  var ver = hasWebGL() ? '2.0' : '1.4.15';
+  window.__AMAP_VERSION = ver;
+  document.write('<scr' + 'ipt src="https://webapi.amap.com/maps?v=' + ver + '&key=' + AMAP_KEY + '"></scr' + 'ipt>');
+})();
+</script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+
+/* ============================================================
+   主题变量：默认值与 <script> 顶部 THEME 对象一致，运行时由 THEME 注入覆盖。
+   生成时只需修改 THEME 对象，不要改这里的 CSS。
+   ============================================================ */
+:root {
+  --page-bg: #F8FAFC;
+  --text-color: #1E293B;
+  --muted: #64748B;
+  --panel-bg: #FFFFFF;
+  --panel-border: #E2E8F0;
+  --hover-bg: #F1F5F9;
+  --banner-grad: linear-gradient(135deg,#667EEA 0%,#764BA2 50%,#E11D48 100%);
+  --primary: #6366F1;
+  --primary-soft: #EEF2FF;
+  --highlight: #EF4444;
+  --accent: #F97316;
+  --font-family: -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
+}
+
+body { font-family:var(--font-family); background:var(--page-bg); color:var(--text-color); overflow:hidden; height:100vh; position:relative; }
+body::before { content:''; position:fixed; inset:0; background:radial-gradient(circle at 12% 18%, rgba(99,102,241,0.05) 0%, transparent 35%), radial-gradient(circle at 88% 82%, rgba(14,165,233,0.05) 0%, transparent 35%), radial-gradient(circle at 50% 50%, rgba(249,115,22,0.02) 0%, transparent 50%); pointer-events:none; z-index:0; }
+
+/* Banner - 渐变横幅 */
+.banner { background:var(--banner-grad); padding:24px 24px 20px; color:#fff; position:relative; overflow:hidden; flex-shrink:0; box-shadow:0 4px 24px rgba(15,23,42,0.18); }
+.banner::before { content:''; position:absolute; inset:0; background:radial-gradient(ellipse at 85% 15%, rgba(251,191,36,0.16) 0%, transparent 50%), radial-gradient(ellipse at 15% 85%, rgba(56,189,248,0.14) 0%, transparent 50%); pointer-events:none; }
+.banner::after { content:''; position:absolute; inset:0; background-image:linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px); background-size:36px 36px; pointer-events:none; opacity:0.6; }
+.banner-inner { width:100%; margin:0 auto; display:flex; align-items:center; position:relative; z-index:1; gap:22px; }
+.banner-copy { flex:0 1 auto; min-width:220px; }
+.banner h1 { font-size:28px; font-weight:700; letter-spacing:-0.5px; text-shadow:0 2px 12px rgba(0,0,0,0.28); }
+.banner-sub { font-size:13px; opacity:0.85; margin-top:4px; }
+.banner-badges { display:flex; gap:10px; flex:0 0 auto; flex-wrap:nowrap; }
+.city-badge { padding:6px 14px; border-radius:20px; font-size:12px; font-weight:600; backdrop-filter:blur(8px); }
+.banner-badges .city-badge { background:rgba(255,255,255,.94)!important; box-shadow:0 2px 8px rgba(0,0,0,.12); }
+.weather-panel { min-width:0; margin-left:auto; display:flex; flex-direction:column; gap:6px; }
+.weather-head { display:flex; align-items:baseline; gap:10px; font-size:12px; font-weight:700; }
+.weather-source { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; font-weight:400; opacity:.8; }
+.weather-cards { max-width:min(760px,55vw); display:flex; gap:8px; overflow-x:auto; padding-bottom:2px; scrollbar-width:thin; }
+.weather-card { min-width:108px; padding:7px 10px 6px; border:1px solid rgba(255,255,255,.32); border-radius:8px; background:rgba(255,255,255,.16); box-shadow:0 2px 10px rgba(0,0,0,.1); backdrop-filter:blur(6px); }
+.weather-card-top { display:flex; justify-content:space-between; align-items:baseline; gap:8px; font-size:11px; font-weight:700; }
+.weather-card-date { opacity:.82; font-weight:600; }
+.weather-card-main { display:flex; align-items:center; gap:5px; margin-top:3px; font-size:13px; font-weight:700; }
+.weather-card-detail { margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:10.5px; opacity:.9; }
+.weather-empty { padding:8px 10px; border:1px solid rgba(255,255,255,.28); border-radius:8px; font-size:12px; opacity:.86; }
+@media (max-width:1100px) {
+  .banner-inner { align-items:flex-start; flex-wrap:wrap; gap:12px; }
+  .weather-panel { width:100%; margin-left:0; }
+  .weather-cards { max-width:100%; }
+}
+
+/* Layout */
+.container { display:flex; flex-direction:column; height:100vh; position:relative; z-index:1; }
+.main-area { display:flex; flex:1; overflow:hidden; padding:12px; gap:12px; }
+
+/* Left panel - 城市切换 + 景点列表 */
+.left-panel { width:260px; min-width:260px; display:flex; flex-direction:column; gap:8px; overflow:hidden; }
+.tabs { display:flex; gap:6px; flex-shrink:0; }
+.city-tab { flex:1; padding:8px 12px; border:1.5px solid var(--panel-border); border-radius:10px; background:var(--panel-bg); font-size:14px; font-weight:600; cursor:pointer; transition:all 0.2s; color:var(--muted); box-shadow:0 1px 2px rgba(15,23,42,0.03); }
+.city-tab:hover { border-color:var(--tab-color,var(--primary)); color:var(--tab-color,var(--primary)); }
+.city-tab.active { background:var(--tab-color,var(--primary)); border-color:var(--tab-color,var(--primary)); color:#fff; }
+.poi-list { flex:1; overflow-y:auto; padding-right:6px; }
+.poi-list::-webkit-scrollbar, .gallery-grid::-webkit-scrollbar, #routeContent::-webkit-scrollbar, .intro-panel::-webkit-scrollbar { width:6px; }
+.poi-list::-webkit-scrollbar-track, .gallery-grid::-webkit-scrollbar-track, #routeContent::-webkit-scrollbar-track, .intro-panel::-webkit-scrollbar-track { background:transparent; }
+.poi-list::-webkit-scrollbar-thumb, .gallery-grid::-webkit-scrollbar-thumb, #routeContent::-webkit-scrollbar-thumb, .intro-panel::-webkit-scrollbar-thumb { background:#94A3B8; border-radius:3px; }
+.poi-list::-webkit-scrollbar-thumb:hover, .gallery-grid::-webkit-scrollbar-thumb:hover, #routeContent::-webkit-scrollbar-thumb:hover, .intro-panel::-webkit-scrollbar-thumb:hover { background:#64748B; }
+.poi-list, .gallery-grid, #routeContent, .intro-panel { scrollbar-width:thin; scrollbar-color:#94A3B8 transparent; }
+.poi-item { display:flex; align-items:center; gap:8px; padding:9px 10px; border-radius:8px; cursor:pointer; transition:all 0.15s; border:1px solid transparent; margin-bottom:3px; }
+.poi-item:hover { background:var(--hover-bg); }
+.poi-item.active { background:var(--primary-soft); border-color:var(--primary); }
+.poi-item-num { width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#fff; flex-shrink:0; }
+.poi-item-type { width:24px; height:24px; display:flex; align-items:center; justify-content:center; border-radius:6px; background:var(--panel-bg); border:1px solid var(--panel-border); font-size:14px; flex-shrink:0; }
+.poi-item-name { font-size:13px; font-weight:500; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.poi-item-category { color:var(--muted); font-size:11px; margin-right:4px; }
+.poi-item-day { font-size:11px; color:var(--muted); flex-shrink:0; }
+
+/* Middle panel - 600px：画廊 + 介绍 + 路线 */
+.mid-panel { width:600px; min-width:600px; display:flex; flex-direction:column; gap:12px; overflow:hidden; }
+.gallery-panel { height:300px; min-height:300px; display:flex; flex-direction:column; background:var(--panel-bg); border-radius:14px; overflow:hidden; box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 8px 24px rgba(15,23,42,0.06); border:1px solid rgba(226,232,240,0.7); border-top:3px solid #6366F1; }
+.gallery-header { padding:10px 14px; border-bottom:1px solid var(--panel-border); flex-shrink:0; display:flex; align-items:center; gap:8px; background:linear-gradient(180deg, rgba(248,250,252,0.6) 0%, transparent 100%); }
+.gallery-title { font-size:14px; font-weight:600; }
+.gallery-cat-badge { padding:2px 8px; border-radius:4px; font-size:11px; font-weight:600; }
+.gallery-grid { flex:1; display:grid; grid-template-columns:1fr 1fr; grid-auto-rows:auto; gap:8px; padding:10px; overflow-y:auto; align-content:start; }
+.gallery-img { width:100%; aspect-ratio:1/1; border-radius:8px; object-fit:cover; cursor:pointer; transition:transform 0.2s; border:1px solid var(--panel-border); }
+.gallery-img:hover { transform:scale(1.03); }
+.gallery-empty { grid-column:1/-1; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:14px; min-height:200px; }
+.intro-panel { height:120px; min-height:120px; background:var(--panel-bg); border-radius:14px; padding:12px 16px; box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 8px 24px rgba(15,23,42,0.06); border:1px solid rgba(226,232,240,0.7); border-top:3px solid #F97316; overflow-y:auto; }
+.intro-title { font-size:14px; font-weight:600; margin-bottom:6px; }
+.intro-meta { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px; }
+.intro-meta-item { font-size:12px; padding:1px 8px; border-radius:4px; background:var(--hover-bg); color:var(--muted); }
+.intro-text { font-size:15px; color:var(--muted); line-height:1.7; }
+.intro-review { margin-top:7px; padding-left:9px; border-left:3px solid var(--accent); color:var(--text-color); font-size:12px; line-height:1.55; }
+.route-panel { flex:1; background:var(--panel-bg); border-radius:14px; box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 8px 24px rgba(15,23,42,0.06); border:1px solid rgba(226,232,240,0.7); border-top:3px solid #10B981; overflow:hidden; display:flex; flex-direction:column; }
+.route-header { font-size:14px; font-weight:700; display:flex; align-items:center; gap:6px; flex-shrink:0; padding:10px 14px; background:var(--panel-bg); border-bottom:1px solid var(--panel-border); }
+#routeContent { flex:1; overflow-y:auto; padding:10px 14px; }
+.route-stay { border:1px dashed var(--panel-border); background:var(--primary-soft); border-radius:8px; padding:9px 12px; margin:2px 0 10px; }
+.route-stay-title { font-size:12px; font-weight:700; color:var(--primary); margin-bottom:3px; }
+.route-stay-body { font-size:12px; line-height:1.65; color:var(--text-color); }
+.route-day-block { border-top:1px solid var(--panel-border); padding:10px 0 4px; }
+.route-day-block:first-child { border-top:0; padding-top:2px; }
+.route-day-head { display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
+.route-day-title { font-size:14px; font-weight:700; color:var(--text-color); }
+.route-day-time { font-size:12px; color:var(--muted); text-align:right; }
+.route-summary { margin:4px 0 9px; font-size:12px; line-height:1.5; color:var(--muted); }
+.timeline-stop { display:grid; grid-template-columns:78px 30px minmax(0,1fr); align-items:start; gap:8px; padding:3px 4px; border-radius:6px; cursor:pointer; }
+.timeline-stop:hover { background:var(--hover-bg); }
+.timeline-clock { font-size:12px; color:var(--text-color); font-variant-numeric:tabular-nums; padding-top:5px; }
+.timeline-icon { width:28px; height:28px; border-radius:7px; display:flex; align-items:center; justify-content:center; font-size:16px; border:1px solid var(--panel-border); background:var(--panel-bg); }
+.timeline-name { font-size:13px; font-weight:600; line-height:1.35; }
+.timeline-kind { font-size:11px; color:var(--muted); font-weight:500; margin-right:5px; }
+.meal-pill { display:inline-block; font-size:11px; font-weight:700; color:#C2410C; background:#FFF7ED; border:1px solid #FED7AA; border-radius:4px; padding:0 5px; margin-right:5px; }
+.timeline-stay { font-size:11px; color:var(--muted); margin-top:2px; }
+.timeline-travel { margin:1px 0 1px 99px; min-height:28px; padding:4px 8px 4px 15px; border-left:2px dotted var(--panel-border); display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:11px; color:var(--muted); cursor:pointer; }
+.timeline-travel:hover { color:var(--text-color); background:var(--hover-bg); border-radius:0 6px 6px 0; }
+.timeline-travel.active { color:var(--text-color); background:var(--primary-soft); border-left-color:var(--primary); border-radius:0 6px 6px 0; }
+.travel-mode { color:var(--primary); font-weight:600; }
+.travel-time { color:var(--accent); font-weight:600; }
+.timeline-transfer { margin:8px 0 3px; padding:8px 10px; border:1px solid #BAE6FD; border-radius:7px; background:#F0F9FF; display:flex; align-items:center; gap:7px; flex-wrap:wrap; font-size:12px; cursor:pointer; }
+.timeline-transfer:hover { border-color:#38BDF8; }
+.timeline-transfer.active { border-color:var(--primary); box-shadow:0 0 0 1px var(--primary); }
+.transfer-badge { color:#0369A1; font-weight:700; }
+
+/* Map panel - 全高 */
+.map-panel { flex:1; border-radius:14px; overflow:hidden; box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 8px 24px rgba(15,23,42,0.06); border:1px solid rgba(226,232,240,0.7); border-top:3px solid #0891B2; position:relative; min-width:300px; }
+#map { width:100%; height:100%; }
+.map-status { position:absolute; inset:0; z-index:20; display:none; align-items:center; justify-content:center; padding:24px; background:var(--panel-bg); color:var(--muted); font-size:14px; line-height:1.6; text-align:center; }
+.map-status.visible { display:flex; }
+.map-marker { display:flex; align-items:center; gap:5px; height:32px; white-space:nowrap; }
+.map-marker-dot { display:flex; align-items:center; justify-content:center; border-radius:50%; color:#fff; font-weight:700; box-shadow:0 2px 8px rgba(0,0,0,0.28); border:2px solid #fff; flex:0 0 auto; transition:width 0.2s,height 0.2s,font-size 0.2s; }
+.map-marker-name { display:block; max-width:132px; overflow:hidden; text-overflow:ellipsis; padding:4px 7px; border:1px solid rgba(148,163,184,0.45); border-radius:5px; background:rgba(255,255,255,0.94); color:#334155; box-shadow:0 1px 5px rgba(15,23,42,0.14); font-size:12px; font-weight:600; line-height:1.2; }
+.map-marker.active .map-marker-name { color:var(--highlight); border-color:rgba(239,68,68,0.45); }
+.map-overlay-stack { position:absolute; right:12px; bottom:12px; z-index:10; display:flex; width:min(286px,calc(100% - 24px)); flex-direction:column; align-items:flex-end; gap:8px; pointer-events:none; }
+.route-controls { display:none; width:100%; padding:9px; border:1px solid var(--panel-border); border-radius:8px; background:rgba(255,255,255,0.96); box-shadow:0 3px 14px rgba(15,23,42,0.16); color:var(--text-color); pointer-events:auto; }
+.route-controls.visible { display:block; }
+.route-controls.cross-city .route-mode-grid { display:none; }
+.route-control-head { display:flex; min-width:0; align-items:center; justify-content:space-between; gap:8px; margin-bottom:7px; }
+.route-control-title { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; font-weight:700; }
+.route-reset { width:28px; height:28px; flex:0 0 28px; border:1px solid var(--panel-border); border-radius:6px; background:var(--panel-bg); color:var(--muted); font-size:18px; line-height:1; cursor:pointer; }
+.route-reset:hover { color:var(--primary); border-color:var(--primary); background:var(--primary-soft); }
+.route-mode-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:5px; }
+.route-mode-btn { min-width:0; height:38px; padding:3px 2px; border:1px solid var(--panel-border); border-radius:6px; background:var(--panel-bg); color:var(--muted); cursor:pointer; font-size:11px; line-height:1.1; }
+.route-mode-btn span { display:block; margin-bottom:2px; font-size:15px; }
+.route-mode-btn:hover { color:var(--primary); border-color:var(--primary); }
+.route-mode-btn.active { color:#fff; border-color:var(--primary); background:var(--primary); }
+.route-mode-btn:disabled { cursor:wait; opacity:0.6; }
+.route-control-status { min-height:17px; margin-top:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); font-size:11px; }
+.route-control-status.error { color:#B91C1C; }
+.map-legend { background:var(--panel-bg); border-radius:8px; padding:8px 12px; box-shadow:0 2px 10px rgba(0,0,0,0.1); font-size:12px; color:var(--text-color); pointer-events:auto; }
+.legend-item { display:flex; align-items:center; gap:6px; margin-bottom:4px; }
+.legend-item:last-child { margin-bottom:0; }
+.legend-icon { width:20px; text-align:center; font-size:14px; }
+
+/* Lightbox */
+.lightbox { position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.85); display:none; align-items:center; justify-content:center; z-index:9999; cursor:zoom-out; }
+.lightbox img { max-width:90%; max-height:90%; border-radius:8px; }
+
+/* ============================================================
+   视觉优化层：旅行杂志 × 行程工作台
+   仅覆盖视觉样式，不改变页面结构、内容与交互逻辑。
+   ============================================================ */
+:root {
+  --page-bg:#F3F1EB;
+  --text-color:#18211D;
+  --muted:#69736D;
+  --panel-bg:#FBFAF7;
+  --panel-border:#DCDDD6;
+  --hover-bg:#ECEFEA;
+  --banner-grad:linear-gradient(118deg,#173B32 0%,#214E43 52%,#8F3E2F 100%);
+  --primary:#176B5B;
+  --primary-soft:#E4F0EC;
+  --highlight:#B44735;
+  --accent:#D27A32;
+  --font-family:"HarmonyOS Sans SC","MiSans","Source Han Sans SC","Noto Sans CJK SC","PingFang SC","Microsoft YaHei UI",sans-serif;
+  --radius-sm:6px;
+  --radius-md:8px;
+  --radius-lg:10px;
+  --shadow-panel:0 1px 1px rgba(32,48,41,.03),0 10px 30px rgba(32,48,41,.055);
+  --ease-out:cubic-bezier(.16,1,.3,1);
+}
+
+html { color-scheme:light; }
+body {
+  letter-spacing:0;
+  background:
+    linear-gradient(rgba(23,107,91,.025) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(23,107,91,.025) 1px,transparent 1px),
+    var(--page-bg);
+  background-size:32px 32px;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+body::before { display:none; }
+button { font:inherit; letter-spacing:0; }
+button:focus-visible,[tabindex]:focus-visible,.poi-item:focus-visible,.timeline-stop:focus-visible,.timeline-travel:focus-visible {
+  outline:2px solid var(--primary);
+  outline-offset:2px;
+}
+
+.banner {
+  min-height:112px;
+  padding:20px 24px 18px;
+  background:var(--banner-grad);
+  box-shadow:0 8px 28px rgba(22,46,39,.17);
+  isolation:isolate;
+}
+.banner::before {
+  inset:auto -5% -85px auto;
+  width:430px;
+  height:190px;
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:50%;
+  background:transparent;
+  transform:rotate(-8deg);
+}
+.banner::after {
+  inset:0;
+  opacity:.34;
+  background-image:
+    linear-gradient(115deg,transparent 0 68%,rgba(255,255,255,.055) 68% 69%,transparent 69%),
+    linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px);
+  background-size:auto,100% 24px;
+}
+.banner-inner { gap:24px; }
+.banner-copy { min-width:270px; }
+.banner h1 {
+  font-size:clamp(24px,2vw,30px);
+  font-weight:760;
+  line-height:1.15;
+  letter-spacing:0;
+  text-shadow:none;
+}
+.banner-sub {
+  margin-top:8px;
+  color:rgba(255,255,255,.72);
+  font-size:12px;
+  font-weight:500;
+  letter-spacing:.08em;
+}
+.banner-badges { gap:8px; }
+.city-badge {
+  padding:6px 11px;
+  border-radius:5px;
+  font-size:11px;
+  font-weight:700;
+  letter-spacing:.02em;
+}
+.banner-badges .city-badge {
+  border-color:rgba(255,255,255,.7)!important;
+  background:rgba(255,255,255,.91)!important;
+  box-shadow:none;
+}
+.weather-panel { gap:7px; }
+.weather-head { gap:8px; font-size:11px; letter-spacing:.06em; }
+.weather-source { color:rgba(255,255,255,.62); }
+.weather-cards { gap:7px; scrollbar-color:rgba(255,255,255,.32) transparent; }
+.weather-card {
+  min-width:112px;
+  padding:8px 10px 7px;
+  border-color:rgba(255,255,255,.2);
+  border-radius:6px;
+  background:rgba(12,34,28,.2);
+  box-shadow:none;
+  backdrop-filter:blur(10px);
+}
+.weather-card-main { margin-top:5px; font-size:13px; }
+.weather-card-detail { color:rgba(255,255,255,.72); }
+
+.main-area { padding:14px; gap:14px; }
+.left-panel { gap:10px; }
+.tabs { gap:6px; padding:3px; border:1px solid var(--panel-border); border-radius:var(--radius-md); background:rgba(251,250,247,.8); }
+.city-tab {
+  min-height:38px;
+  padding:7px 12px;
+  border:0;
+  border-radius:5px;
+  background:transparent;
+  box-shadow:none;
+  color:var(--muted);
+  font-size:13px;
+  font-weight:650;
+  transition:color .18s var(--ease-out),background-color .18s var(--ease-out),transform .18s var(--ease-out);
+}
+.city-tab:hover { border-color:transparent; background:var(--hover-bg); color:var(--text-color); }
+.city-tab.active { background:var(--tab-color,var(--primary)); box-shadow:0 3px 10px color-mix(in srgb,var(--tab-color,var(--primary)) 25%,transparent); }
+.city-tab:active { transform:scale(.98); }
+.poi-list { padding:4px 5px 4px 2px; }
+.poi-item {
+  min-height:43px;
+  gap:9px;
+  margin-bottom:2px;
+  padding:7px 8px;
+  border-radius:var(--radius-sm);
+  transition:background-color .16s var(--ease-out),border-color .16s var(--ease-out),transform .16s var(--ease-out);
+}
+.poi-item:hover { background:rgba(251,250,247,.78); transform:translateX(2px); }
+.poi-item.active { border-color:color-mix(in srgb,var(--primary) 30%,transparent); background:var(--primary-soft); }
+.poi-item-num { width:22px; height:22px; border-radius:5px; font-size:10px; box-shadow:inset 0 0 0 1px rgba(255,255,255,.2); }
+.poi-item-type { width:27px; height:27px; border-radius:5px; background:rgba(255,255,255,.56); font-size:14px; }
+.poi-item-name { font-size:12.5px; font-weight:600; }
+.poi-item-category { font-size:10px; letter-spacing:.03em; }
+.poi-item-day { padding:2px 4px; border-radius:3px; background:rgba(105,115,109,.08); font-size:9.5px; font-weight:700; }
+
+.gallery-panel,.intro-panel,.route-panel,.map-panel {
+  border:1px solid var(--panel-border);
+  border-top:1px solid var(--panel-border);
+  border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-panel);
+}
+.gallery-panel { height:300px; min-height:300px; }
+.gallery-header,.route-header {
+  min-height:43px;
+  padding:10px 13px;
+  border-bottom-color:var(--panel-border);
+  background:color-mix(in srgb,var(--panel-bg) 86%,var(--page-bg));
+}
+.gallery-header::before,.route-header::before {
+  content:"";
+  width:3px;
+  height:16px;
+  border-radius:2px;
+  background:var(--primary);
+  flex:0 0 auto;
+}
+.gallery-title,.route-header { font-size:13px; font-weight:720; }
+.gallery-cat-badge { padding:3px 7px; border-radius:4px; font-size:10px; }
+.gallery-grid { gap:9px; padding:10px; }
+.gallery-img {
+  border-color:color-mix(in srgb,var(--panel-border) 80%,transparent);
+  border-radius:var(--radius-sm);
+  filter:saturate(.92) contrast(1.02);
+  transition:transform .3s var(--ease-out),filter .3s var(--ease-out),box-shadow .3s var(--ease-out);
+}
+.gallery-img:hover { transform:scale(1.025); filter:saturate(1.05) contrast(1.03); box-shadow:0 8px 22px rgba(24,33,29,.13); }
+.gallery-empty { font-size:12px; }
+.intro-panel { padding:13px 15px; }
+.intro-title { margin-bottom:7px; font-size:13px; font-weight:720; }
+.intro-meta { gap:5px; }
+.intro-meta-item { padding:2px 7px; border:1px solid rgba(105,115,109,.1); border-radius:4px; background:rgba(105,115,109,.065); font-size:10.5px; }
+.intro-text { color:#536059; font-size:13px; line-height:1.68; }
+.intro-review { border-left-width:2px; font-size:11.5px; }
+#routeContent { padding:10px 13px 14px; }
+.route-day-block { padding:12px 0 5px; }
+.route-day-title { display:inline-flex; align-items:center; padding:3px 7px; border-radius:4px; background:var(--primary-soft); color:var(--primary); font-size:11px; font-weight:800; }
+.route-day-time { font-size:10.5px; }
+.route-summary { margin:7px 0 10px; font-size:11.5px; }
+.timeline-stop { grid-template-columns:76px 28px minmax(0,1fr); gap:8px; padding:5px 5px; border-radius:5px; transition:background-color .16s var(--ease-out),transform .16s var(--ease-out); }
+.timeline-stop:hover { transform:translateX(2px); }
+.timeline-clock { font-size:11px; font-weight:600; }
+.timeline-icon { width:27px; height:27px; border-radius:5px; background:#F7F6F2; }
+.timeline-name { font-size:12px; font-weight:650; }
+.timeline-kind,.timeline-stay { font-size:10px; }
+.meal-pill { border-radius:3px; font-size:9.5px; }
+.timeline-travel { margin-left:96px; border-left-color:#C6CBC5; font-size:10.5px; }
+.timeline-transfer { border-color:#B9D3CA; border-radius:5px; background:#EEF5F2; }
+.transfer-badge { color:var(--primary); }
+
+.map-panel { min-width:300px; background:#CAD8D4; }
+.map-status { background:#F2F6F4; color:#6E807B; }
+.route-controls,.map-legend {
+  border:1px solid rgba(220,221,214,.95);
+  border-radius:var(--radius-md);
+  background:rgba(245,248,247,.96);
+  color:#304640;
+  box-shadow:0 10px 28px rgba(24,33,29,.14);
+  backdrop-filter:blur(12px);
+}
+.route-reset,.route-mode-btn { border-radius:5px; }
+.route-reset:active,.route-mode-btn:active { transform:scale(.96); }
+.map-marker-dot { border-radius:5px; box-shadow:0 3px 10px rgba(24,33,29,.24); }
+.map-marker-name { border-radius:4px; background:rgba(251,250,247,.94); color:#28332E; font-size:11px; box-shadow:0 4px 12px rgba(24,33,29,.12); }
+.amap-layer-switch { border:1px solid rgba(220,221,214,.95)!important; border-radius:6px!important; background:rgba(251,250,247,.96)!important; box-shadow:0 8px 22px rgba(24,33,29,.14)!important; }
+.amap-layer-switch button { background:transparent!important; color:#536059!important; }
+.amap-layer-switch button.active { background:var(--primary)!important; color:#fff!important; }
+
+.poi-list::-webkit-scrollbar,.gallery-grid::-webkit-scrollbar,#routeContent::-webkit-scrollbar,.intro-panel::-webkit-scrollbar { width:5px; }
+.poi-list::-webkit-scrollbar-thumb,.gallery-grid::-webkit-scrollbar-thumb,#routeContent::-webkit-scrollbar-thumb,.intro-panel::-webkit-scrollbar-thumb { background:#B8BEB8; border-radius:5px; }
+.lightbox { background:rgba(13,20,17,.9); backdrop-filter:blur(10px); }
+.lightbox img { border:1px solid rgba(255,255,255,.16); border-radius:var(--radius-md); box-shadow:0 24px 80px rgba(0,0,0,.42); }
+
+@media (max-width:1280px) {
+  .main-area { padding:10px; gap:10px; }
+  .left-panel { width:235px; min-width:235px; }
+  .mid-panel { width:540px; min-width:540px; gap:10px; }
+  .banner { padding-inline:18px; }
+}
+@media (max-width:1100px) {
+  .banner { min-height:0; }
+  .banner-copy { min-width:220px; }
+  .weather-card { min-width:105px; }
+}
+@media (prefers-reduced-motion:reduce) {
+  *,*::before,*::after { scroll-behavior:auto!important; transition-duration:.01ms!important; animation-duration:.01ms!important; animation-iteration-count:1!important; }
+}
+
+/* 青瓷旅行工作台：中明度配色覆盖 */
+html { color-scheme:light; }
+body {
+  background:
+    linear-gradient(rgba(37,80,74,.035) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(37,80,74,.035) 1px,transparent 1px),
+    var(--page-bg);
+  background-size:28px 28px;
+}
+.banner { border-bottom:1px solid rgba(255,255,255,.16); box-shadow:0 12px 34px rgba(32,70,66,.22); }
+.banner::after { opacity:.38; }
+.banner-badges .city-badge { border-color:rgba(255,255,255,.2)!important; background:rgba(23,63,59,.46)!important; color:#F7FAF9!important; }
+.weather-card { border-color:rgba(255,255,255,.18); background:rgba(20,55,52,.3); }
+.main-area { background:transparent; }
+.left-panel { padding:10px; border:1px solid #28534E; border-radius:var(--radius-lg); background:#1D4944; box-shadow:0 16px 38px rgba(38,75,70,.22); }
+.tabs { border-color:rgba(255,255,255,.14); background:#163B37; }
+.city-tab { color:#BDD1CC; }
+.city-tab:hover { background:#2B5B55; color:#FFFFFF; }
+.city-tab.active { color:#FFFFFF; }
+.poi-item { border-color:transparent; }
+.poi-item:hover { background:#285650; }
+.poi-item.active { border-color:rgba(255,255,255,.2); background:#346860; box-shadow:inset 3px 0 0 #F0B968; }
+.poi-item-num { color:#FFFFFF; }
+.poi-item-type { border-color:rgba(255,255,255,.16); background:#173D39; }
+.poi-item-name { color:#F4F8F7; }
+.poi-item-category { color:#A7C0BA; }
+.poi-item-day { background:rgba(255,255,255,.1); color:#D4E2DE; }
+.gallery-panel,.intro-panel,.route-panel,.map-panel { border-color:var(--panel-border); background:var(--panel-bg); box-shadow:0 15px 36px rgba(45,77,72,.13); }
+.gallery-header,.route-header { border-bottom-color:var(--panel-border); background:#E7EFEC; }
+.gallery-header::before,.route-header::before { background:#D96752; box-shadow:0 0 0 3px rgba(217,103,82,.1); }
+.gallery-title,.intro-title,.route-header { color:#263A36; }
+.gallery-cat-badge { border:1px solid #C2D1CC; background:#DCE7E3; color:#526965; }
+.gallery-grid { background:#F2F6F4; }
+.gallery-img { border-color:#BFCFC9; filter:saturate(.96) contrast(1.02); }
+.gallery-img:hover { filter:saturate(1.07) contrast(1.04); box-shadow:0 12px 28px rgba(40,74,68,.22); }
+.gallery-empty { color:#71837E; }
+.intro-panel { background:#EDF3F0; }
+.intro-meta-item { border-color:#C4D3CE; background:#DEE9E5; color:#586E69; }
+.intro-text { color:#506661; }
+.intro-review { border-left-color:var(--accent); background:rgba(227,151,79,.1); color:#586A66; }
+#routeContent { background:#F2F6F4; }
+.route-day-block { border-bottom-color:#D4DEDA; }
+.route-day-title { border:1px solid rgba(40,127,120,.18); background:var(--primary-soft); color:#226B65; }
+.route-day-time,.route-summary,.timeline-kind,.timeline-stay { color:#72837E; }
+.timeline-clock { color:#536762; }
+.timeline-icon { border-color:#C7D4D0; background:#E6EEEB; }
+.timeline-name { color:#2D413D; }
+.timeline-stop:hover { background:#E5ECE9; }
+.timeline-travel { border-left-color:#B4C5BF; color:#687B76; }
+.timeline-transfer { border-color:#A9CDC4; background:#E0EFEB; }
+.transfer-badge { color:#287F78; }
+.meal-pill { border-color:rgba(227,151,79,.3); background:rgba(227,151,79,.12); color:#A95C24; }
+.map-panel { background:#CAD8D4; }
+.map-status { background:#F2F6F4; color:#6E807B; }
+.route-controls,.map-legend { border-color:#BDCDC8; background:rgba(245,248,247,.96); color:#304640; box-shadow:0 12px 30px rgba(43,77,70,.2); }
+.route-reset,.route-mode-btn { border-color:#C0D0CB; background:#EEF4F1; color:#627670; }
+.route-reset:hover,.route-mode-btn:hover { border-color:var(--primary); color:#287F78; }
+.route-mode-btn.active { border-color:var(--primary); background:var(--primary); color:#FFFFFF; }
+.map-marker-name { border:1px solid #B6C8C2; background:rgba(247,249,248,.96); color:#30453F; box-shadow:0 6px 16px rgba(42,75,69,.2); }
+.amap-layer-switch { border-color:#BDCDC8!important; background:rgba(245,248,247,.96)!important; }
+.amap-layer-switch button { color:#627670!important; }
+.amap-layer-switch button.active { background:var(--primary)!important; color:#FFFFFF!important; }
+.poi-list::-webkit-scrollbar-thumb { background:#5D8179; }
+.gallery-grid::-webkit-scrollbar-thumb,#routeContent::-webkit-scrollbar-thumb,.intro-panel::-webkit-scrollbar-thumb { background:#9DAFAA; }
+.poi-list { scrollbar-color:#5D8179 transparent; }
+.gallery-grid,#routeContent,.intro-panel { scrollbar-color:#9DAFAA transparent; }
+
+/* ============================================================
+   城市主题背景 × 透明度分层（输出风格基准，随城市 Tab 整套换肤）
+   ① 整页背景 = 当前城市主题大图（cityThemes[城市].heroImage，
+      由 JS 的 CITY_SKINS / applyCitySkin 驱动切换）；
+   ② 标题横幅透明度 0（完全透出背景图）；
+   ③ 其余面板半透明玻璃卡片（约50%）+ 毛玻璃模糊，保证可读性。
+   ============================================================ */
+.city-bg { position:fixed; top:0; left:0; width:calc(100vw / var(--app-zoom,1)); height:calc(100vh / var(--app-zoom,1)); z-index:0; background-size:cover; background-position:center; background-repeat:no-repeat; background-color:var(--page-bg); pointer-events:none; }
+
+/* —— 标题区：透明度 0 —— */
+.banner { background:transparent!important; box-shadow:none!important; border-bottom:none!important; }
+.banner::before,.banner::after { display:none!important; }
+.banner h1 { text-shadow:0 2px 16px rgba(0,0,0,.5),0 0 2px rgba(0,0,0,.35); }
+.banner-sub { text-shadow:0 1px 8px rgba(0,0,0,.55); color:#fff!important; }
+.banner-badges .city-badge {
+  border-color:rgba(255,255,255,.4)!important;
+  background:var(--chip-bg,rgba(20,40,34,.5))!important;
+  color:#FFFFFF!important;
+  font-weight:700;
+  text-shadow:0 1px 6px rgba(0,0,0,.5);
+  backdrop-filter:blur(10px);
+}
+.weather-head,.weather-source { color:#fff!important; text-shadow:0 1px 6px rgba(0,0,0,.55); }
+.weather-card {
+  border-color:rgba(255,255,255,.3)!important;
+  background:var(--chip-bg,rgba(20,40,34,.5))!important;
+  color:#fff!important;
+  text-shadow:0 1px 5px rgba(0,0,0,.5);
+  backdrop-filter:blur(10px)!important;
+}
+.weather-card-date { opacity:1!important; font-weight:700!important; }
+.weather-card-detail { color:rgba(255,255,255,.9)!important; }
+
+/* —— 其余区域：约50%透明玻璃卡片 —— */
+.left-panel {
+  border:1px solid rgba(255,255,255,.55)!important;
+  background:rgba(255,255,255,.50)!important;
+  box-shadow:0 10px 30px rgba(20,40,35,.12)!important;
+  backdrop-filter:blur(14px)!important;
+  -webkit-backdrop-filter:blur(14px)!important;
+}
+.tabs { border:1px solid rgba(255,255,255,.5)!important; background:rgba(255,255,255,.40)!important; backdrop-filter:blur(8px); }
+.gallery-panel,.intro-panel,.route-panel {
+  background:rgba(255,255,255,.50)!important;
+  border:1px solid rgba(255,255,255,.55)!important;
+  box-shadow:0 10px 30px rgba(20,40,35,.12)!important;
+  backdrop-filter:blur(14px)!important;
+  -webkit-backdrop-filter:blur(14px)!important;
+}
+.gallery-panel { border-top:3px solid var(--primary)!important; }
+.intro-panel   { border-top:3px solid var(--accent)!important; }
+.route-panel   { border-top:3px solid var(--primary)!important; }
+.gallery-header,.route-header {
+  background:transparent!important;
+  border-bottom:1px solid rgba(255,255,255,.45)!important;
+}
+.gallery-header::before,.route-header::before {
+  background:var(--primary)!important;
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--primary) 12%,transparent)!important;
+}
+.poi-item-type,.timeline-icon { background:rgba(255,255,255,.60)!important; }
+.route-controls,.map-legend {
+  background:rgba(255,255,255,.55)!important;
+  backdrop-filter:blur(12px)!important;
+}
+.amap-layer-switch {
+  background:rgba(255,255,255,.55)!important;
+  backdrop-filter:blur(12px)!important;
+}
+/* —— 玻璃卡片上的文字可读性：跟随城市皮肤墨色（--ink 由 applyCitySkin 注入）—— */
+.city-tab { color:var(--ink-soft,var(--text-color))!important; }
+.city-tab:hover { color:var(--text-color)!important; }
+.city-tab.active { color:#FFFFFF!important; }
+.poi-item-name { color:var(--ink,var(--text-color))!important; }
+.poi-item-category { color:var(--ink-soft,var(--muted))!important; }
+.poi-item-day { color:var(--ink-soft,var(--muted))!important; font-weight:700; }
+
+/* —— 三栏等高对齐：以左侧地点模块设计高度(800px)为基准，三栏顶底完全对齐 —— */
+.map-panel { flex:0 0 auto!important; width:800px!important; min-width:800px!important; max-width:800px!important; height:800px!important; align-self:flex-end!important; }
+.mid-panel { width:600px!important; min-width:600px!important; flex:0 0 auto!important; height:800px!important; min-height:800px!important; align-self:flex-end!important; overflow:visible!important; }
+.left-panel { flex:1 1 auto!important; width:auto!important; min-width:260px!important; height:800px!important; min-height:800px!important; align-self:flex-end!important; }
+.route-panel { flex:0 0 auto!important; height:356px!important; min-height:356px!important; max-height:356px!important; border-radius:var(--radius-lg)!important; }
+#routeContent { border-radius:0 0 10px 10px; }
+
+/* —— 自适应缩放：任何分辨率/比例的显示器按同一设计尺寸等比呈现——
+      小屏整页等比缩小不裁切、大屏等比放大，观感完全一致；
+      缩放系数由 JS fitPage() 写入 --app-zoom，所有 100vw/100vh 均已做补偿 —— */
+:root { --app-zoom:1; }
+body { zoom:var(--app-zoom); width:calc(100vw / var(--app-zoom)); height:calc(100vh / var(--app-zoom)); }
+.container { height:calc(100vh / var(--app-zoom)); }
+.lightbox { width:calc(100vw / var(--app-zoom)); height:calc(100vh / var(--app-zoom)); }
+</style>
+</head>
+<body>
+<div class="city-bg" id="cityBg"></div>
+<div class="container">
+  <div class="banner">
+    <div class="banner-inner">
+      <div class="banner-copy">
+        <h1>{{TITLE}}</h1>
+        <p class="banner-sub">{{SUBTITLE}}</p>
+      </div>
+      <div class="banner-badges" id="cityBadges"></div>
+      <div class="weather-panel" id="weatherPanel">
+        <div class="weather-head">行程天气窗 <span class="weather-source" id="weatherSource"></span></div>
+        <div class="weather-cards" id="weatherCards"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="main-area">
+    <div class="left-panel">
+      <div class="tabs" id="cityTabs"></div>
+      <div class="poi-list" id="poiList"></div>
+    </div>
+
+    <div class="mid-panel">
+      <div class="gallery-panel">
+        <div class="gallery-header">
+          <span class="gallery-title" id="galleryTitle">选择景点查看照片</span>
+          <span class="gallery-cat-badge" id="galleryBadge"></span>
+        </div>
+        <div class="gallery-grid" id="galleryGrid"><div class="gallery-empty">点击左侧景点查看照片</div></div>
+      </div>
+      <div class="intro-panel">
+        <div class="intro-title" id="introTitle">景点介绍</div>
+        <div class="intro-meta" id="introMeta"></div>
+        <div class="intro-text" id="introText">选择左侧景点或地图标记查看详细介绍。</div>
+        <div class="intro-review" id="introReview" style="display:none"></div>
+      </div>
+      <div class="route-panel">
+        <div class="route-header">🧭 每日游玩计划</div>
+        <div id="routeContent"></div>
+      </div>
+    </div>
+
+    <div class="map-panel">
+      <div id="map"></div>
+      <div class="map-status" id="mapStatus"></div>
+      <div class="map-overlay-stack">
+        <div class="route-controls" id="routeControls">
+          <div class="route-control-head">
+            <div class="route-control-title" id="routeControlTitle">选择路线</div>
+            <button class="route-reset" type="button" title="恢复路线总览" aria-label="恢复路线总览" onclick="resetMapOverview()">↺</button>
+          </div>
+          <div class="route-mode-grid" role="group" aria-label="出行方式">
+            <button class="route-mode-btn" type="button" data-route-mode="walking" onclick="switchRouteMode('walking')"><span>🚶</span>步行</button>
+            <button class="route-mode-btn" type="button" data-route-mode="riding" onclick="switchRouteMode('riding')"><span>🚲</span>骑行</button>
+            <button class="route-mode-btn" type="button" data-route-mode="driving" onclick="switchRouteMode('driving')"><span>🚗</span>驾车</button>
+            <button class="route-mode-btn" type="button" data-route-mode="transit" onclick="switchRouteMode('transit')"><span>🚌</span>公交</button>
+          </div>
+          <div class="route-control-status" id="routeControlStatus"></div>
+        </div>
+        <div class="map-legend" id="mapLegend"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="lightbox" id="lightbox" onclick="this.style.display='none'"><img id="lightboxImg" src=""></div>
+
+<script>
+/* ============================================================
+ * ① 风格主题配置 —— render_itinerary.py 通过 THEME_OVERRIDE 合并用户主题
+ *    默认 = 青瓷旅行工作台（竹野绿 × 暖杏）。
+ *    风格映射建议见 references/api_guide.md「Theme Color Mapping」段。
+ * ============================================================ */
+const THEME = {
+  pageBg: '#DDE6E3',
+  textColor: '#243633',
+  muted: '#70817D',
+  panelBg: '#F2F6F4',
+  panelBorder: '#C4D2CE',
+  hoverBg: '#E4ECE9',
+  bannerGrad: 'linear-gradient(112deg,#173F3B 0%,#2E6765 58%,#6F8792 100%)',
+  primary: '#287F78',
+  primarySoft: '#D5E9E4',
+  highlight: '#D96752',
+  accent: '#E3974F',
+  fontFamily: "'HarmonyOS Sans SC','MiSans','Source Han Sans SC','Noto Sans CJK SC','PingFang SC','Microsoft YaHei UI',sans-serif",
+  mapStyle: 'amap://styles/fresh',
+  cityColors: ['#D39A3B', '#D96752'],
+  markerColors: { attraction:'#287F78', scenic:'#5C9B73', food:'#E3974F' },
+  categoryLabels: { attraction:'景点', scenic:'景区', food:'美食' },
+  categoryIcons: { attraction:'📍', scenic:'🏞️', food:'🍜' },
+};
+Object.assign(THEME, {{THEME_OVERRIDE_JSON}});
+
+/* ============================================================
+ * ③ 城市主题背景 —— 整页背景图随城市 Tab 切换（风格基准层）
+ *    数据来源：theme_override.cityThemes[城市].heroImage（多城）或
+ *    theme_override.heroImage（单城）；联动配色可由
+ *    primary/tint/ink/inkSoft/chipBg 覆盖，缺省自动推导。
+ * ============================================================ */
+function __hexToRgba(hex, alpha){
+  let h = String(hex || '').trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(h)) h = h.slice(1);
+  else if (/^#[0-9a-fA-F]{3}$/.test(h)) h = h.slice(1).split('').map(c => c + c).join('');
+  else return hex;
+  const n = parseInt(h, 16);
+  return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${alpha})`;
+}
+/* 自适应缩放：按设计尺寸(1716×944)等比缩放整页——
+   小显示器自动缩小到完整可见，大显示器等比放大，任何比例观感一致 */
+const DESIGN_W = 1716, DESIGN_H = 944;
+function fitPage(){
+  const z = Math.min(window.innerWidth / DESIGN_W, window.innerHeight / DESIGN_H);
+  const zc = Math.min(Math.max(z, 0.4), 2);
+  document.documentElement.style.setProperty('--app-zoom', zc.toFixed(4));
+}
+window.addEventListener('resize', fitPage);
+fitPage();
+
+/* 应用主题 → CSS 变量（生成时无需改动） */
+(function applyTheme(){
+  const s = document.documentElement.style, t = THEME;
+  s.setProperty('--page-bg', t.pageBg);
+  s.setProperty('--text-color', t.textColor);
+  s.setProperty('--muted', t.muted);
+  s.setProperty('--panel-bg', t.panelBg);
+  s.setProperty('--panel-border', t.panelBorder);
+  s.setProperty('--hover-bg', t.hoverBg);
+  s.setProperty('--banner-grad', t.bannerGrad);
+  s.setProperty('--primary', t.primary);
+  s.setProperty('--primary-soft', t.primarySoft);
+  s.setProperty('--highlight', t.highlight);
+  s.setProperty('--accent', t.accent);
+  s.setProperty('--font-family', t.fontFamily);
+})();
+
+/* ============================================================
+ * ② 数据占位符 —— 生成时替换为真实数据（JSON）
+ *    CITY_DATA   = {"城市名":[{"name","lng","lat","category","day","start_time","end_time","meal_type","review","photos[]",...}, ...]}
+ *                  price = 门票/人均价格（如 "¥80" / "免费"）；suggest = 建议游玩时长（如 "2~3小时"）
+ *                  booking = 预约提示（如 "需提前7天预约"），缺失则不显示
+ *    DAY_DATA    = [{"city","day","departure_time","departure_from","end_time","summary"}, ...]
+ *    ROUTE_DATA  = [{"from","to","depart_time","arrival_time","transport","duration","distance","city","day"}, ...]
+ *                  跨城段 city="跨城"，另含 from_city、to_city、arrival_day
+ *    CITY_CENTERS= 渲染器规范化后的 {"城市名":[lng,lat]}
+ * ============================================================ */
+const CITY_DATA = {{CITY_DATA_JSON}};
+const DAY_DATA = {{DAY_DATA_JSON}};
+const ROUTE_DATA = {{ROUTE_DATA_JSON}};
+const CITY_CENTERS = {{CITY_CENTERS_JSON}};
+const TRIP_META = {{TRIP_META_JSON}};
+const ACCOMMODATION = {{ACCOMMODATION_JSON}}; // {"城市":"住宿片区建议文本"}
+
+/* ============================================================
+ * ③ 城市主题背景 —— 整页背景图随城市 Tab 切换（风格基准层）
+ *    数据来源：theme_override.cityThemes[城市].heroImage（多城）或
+ *    theme_override.heroImage（单城）；联动配色可由
+ *    primary/tint/ink/inkSoft/chipBg 覆盖，缺省自动推导。
+ * ============================================================ */
+function __hexToRgba(hex, alpha){
+  let h = String(hex || '').trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(h)) h = h.slice(1);
+  else if (/^#[0-9a-fA-F]{3}$/.test(h)) h = h.slice(1).split('').map(c => c + c).join('');
+  else return hex;
+  const n = parseInt(h, 16);
+  return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${alpha})`;
+}
+const CITY_SKINS = (function buildCitySkins(){
+  const skins = {}, themes = THEME.cityThemes || {};
+  Object.keys(CITY_DATA).forEach(city => {
+    const t = themes[city] || {};
+    const bg = t.heroImage || THEME.heroImage || '';
+    if (!bg) return;
+    const accent = t.primary || THEME.primary || '#287F78';
+    skins[city] = {
+      bg: bg,
+      tint: t.tint || 'rgba(255,255,255,0.10)',
+      accent: accent,
+      accentSoft: t.primarySoft || __hexToRgba(accent, 0.14),
+      ink: t.ink || '#1F2A26',
+      inkSoft: t.inkSoft || 'rgba(20,40,34,.75)',
+      chipBg: t.chipBg || 'rgba(20,40,34,.52)',
+    };
+  });
+  return skins;
+})();
+/* 应用城市皮肤：换整页背景图 + 联动主题强调色（含地图线路/标记配色） */
+function applyCitySkin(cityName){
+  const skin = CITY_SKINS[cityName];
+  if (!skin) return;
+  const layer = document.getElementById('cityBg');
+  if (layer) layer.style.backgroundImage = `linear-gradient(${skin.tint}, ${skin.tint}), url("${skin.bg}")`;
+  const s = document.documentElement.style;
+  s.setProperty('--primary', skin.accent);
+  s.setProperty('--primary-soft', skin.accentSoft);
+  s.setProperty('--ink', skin.ink);
+  s.setProperty('--ink-soft', skin.inkSoft);
+  s.setProperty('--chip-bg', skin.chipBg);
+  THEME.primary = skin.accent;
+  THEME.primarySoft = skin.accentSoft;
+}
+/* 预加载全部城市背景图，切换城市时秒切 */
+Object.values(CITY_SKINS).forEach(skin => { const img = new Image(); img.src = skin.bg; });
+
+/* 分类/城市配色工具 */
+function colorOf(p){ return p.color || THEME.markerColors[p.category] || THEME.primary; }
+function categoryLabel(p){ return THEME.categoryLabels[p.category] || '景点'; }
+function categoryIcon(p){ return THEME.categoryIcons[p.category] || '📍'; }
+function cityColor(i){ return THEME.cityColors[i % THEME.cityColors.length]; }
+function tripDate(day){
+  if (!TRIP_META.start_date) return '';
+  const value = new Date(`${TRIP_META.start_date}T00:00:00Z`);
+  if (Number.isNaN(value.getTime())) return '';
+  value.setUTCDate(value.getUTCDate() + Number(day) - 1);
+  return value.toISOString().slice(0,10);
+}
+function weekday(dateText){
+  if (!dateText) return '';
+  const value = new Date(`${dateText}T00:00:00Z`);
+  return ['周日','周一','周二','周三','周四','周五','周六'][value.getUTCDay()] || '';
+}
+function weatherIcon(text){
+  if (/雷/.test(text)) return '⛈';
+  if (/雪/.test(text)) return '❄';
+  if (/雨/.test(text)) return '🌧';
+  if (/晴/.test(text)) return '☀';
+  if (/雾/.test(text)) return '🌫';
+  return '☁';
+}
+function displayTemperature(item){
+  if (!item || item.temp_min == null || item.temp_max == null) return '--';
+  return `${item.temp_min}~${item.temp_max}°C`;
+}
+function buildWeather(){
+  const panel = document.getElementById('weatherPanel');
+  const source = document.getElementById('weatherSource');
+  const cards = document.getElementById('weatherCards');
+  if (!TRIP_META.start_date) {
+    panel.style.display = 'none';
+    return;
+  }
+  const days = [...new Set(DAY_DATA.map(plan => Number(plan.day)).filter(Number.isFinite))].sort((a,b) => a-b);
+  source.textContent = [TRIP_META.weather_source, TRIP_META.weather_note].filter(Boolean).join(' · ') || '预报待更新';
+  cards.innerHTML = '';
+  days.forEach(day => {
+    const dateText = tripDate(day);
+    const cities = [...new Set(DAY_DATA.filter(plan => Number(plan.day) === day).map(plan => plan.city))];
+    const forecasts = cities.map(city => ({
+      city,
+      value:(TRIP_META.weather_data || []).find(item => item.date === dateText && item.city === city),
+    }));
+    const card = document.createElement('div');
+    card.className = 'weather-card';
+    const top = document.createElement('div');
+    top.className = 'weather-card-top';
+    top.innerHTML = `<span>Day ${day}</span><span class="weather-card-date">${dateText.slice(5).replace('-', '/')} ${weekday(dateText)}</span>`;
+    const main = document.createElement('div');
+    main.className = 'weather-card-main';
+    const first = forecasts.find(item => item.value);
+    main.textContent = `${weatherIcon(first ? first.value.weather : '')} ${first ? displayTemperature(first.value) : '待更新'}`;
+    const detail = document.createElement('div');
+    detail.className = 'weather-card-detail';
+    detail.textContent = forecasts.map(item => item.value ? `${item.city} ${item.value.weather}` : `${item.city} 待更新`).join(' · ');
+    card.append(top, main, detail);
+    cards.appendChild(card);
+  });
+  if (!days.length) cards.innerHTML = '<div class="weather-empty">暂无可对应的行程日期</div>';
+}
+function meanCenter(pois){
+  if (!pois || !pois.length) return null;
+  return [pois.reduce((s,p)=>s+p.lng,0)/pois.length, pois.reduce((s,p)=>s+p.lat,0)/pois.length];
+}
+function validCenter(value){
+  if (!Array.isArray(value) || value.length !== 2) return null;
+  const lng = Number(value[0]);
+  const lat = Number(value[1]);
+  return Number.isFinite(lng) && Number.isFinite(lat) && Math.abs(lng) <= 180 && Math.abs(lat) <= 90
+    ? [lng, lat] : null;
+}
+function centerForCity(cityName){
+  return validCenter(CITY_CENTERS && CITY_CENTERS[cityName])
+    || validCenter(meanCenter(CITY_DATA[cityName]))
+    || [116.4, 39.9];
+}
+function escapeHtml(value){
+  return String(value == null ? '' : value).replace(/[&<>"']/g, char => ({
+    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+  })[char]);
+}
+
+const ROUTE_MODES = {
+  walking: { label:'步行', plugin:'AMap.Walking', ctor:'Walking', color:'#2563EB' },
+  riding: { label:'骑行', plugin:'AMap.Riding', ctor:'Riding', color:'#0891B2' },
+  driving: { label:'驾车', plugin:'AMap.Driving', ctor:'Driving', color:'#7C3AED' },
+  transit: { label:'公交', plugin:'AMap.Transfer', ctor:'Transfer', color:'#EA580C' },
+};
+
+const firstCity = Object.keys(CITY_DATA)[0];
+let map = null;
+let currentCity = null;
+let markers = [];
+let polylines = [];
+let currentPoiIdx = -1;
+let routeHighlightLine = null;
+let actualRouteLines = [];
+let activeRouteIndex = -1;
+let activeRouteMode = null;
+let routeRequestVersion = 0;
+const routeCache = new Map();
+const routePlanners = new Map();
+
+/* 构建横幅城市徽章 */
+function buildBadges(){
+  const box = document.getElementById('cityBadges');
+  box.innerHTML = Object.keys(CITY_DATA).map((c,i) => {
+    const col = cityColor(i);
+    return `<span class="city-badge" style="background:${col}1A;color:${col};border:1px solid ${col}">${c} · ${CITY_DATA[c].length}个地点</span>`;
+  }).join('');
+}
+
+/* 构建城市 Tab */
+function buildTabs(){
+  const box = document.getElementById('cityTabs');
+  box.innerHTML = Object.keys(CITY_DATA).map((c,i) =>
+    `<button class="city-tab" data-city="${c}" style="--tab-color:${cityColor(i)}">${c}</button>`
+  ).join('');
+  box.querySelectorAll('.city-tab').forEach(tab => tab.addEventListener('click', () => switchCity(tab.dataset.city)));
+}
+
+/* 构建图例（按数据中实际出现的分类） */
+function buildLegend(){
+  const cats = [];
+  Object.values(CITY_DATA).forEach(pois => pois.forEach(p => { if (!cats.includes(p.category)) cats.push(p.category); }));
+  document.getElementById('mapLegend').innerHTML = cats.map(c =>
+    `<div class="legend-item"><span class="legend-icon">${THEME.categoryIcons[c] || '📍'}</span>${THEME.categoryLabels[c] || '景点'}</div>`
+  ).join('');
+}
+
+/* 生成带编号和地点名的地图标记 */
+function makeMarkerContent(num, color, isActive, name) {
+  const bg = isActive ? THEME.highlight : color;
+  const size = isActive ? 32 : 26;
+  const offset = -(size/2);
+  return {
+    html: `<div class="map-marker${isActive ? ' active' : ''}">
+      <span class="map-marker-dot" style="background:${bg};width:${size}px;height:${size}px;font-size:${isActive?14:12}px">${num}</span>
+      <span class="map-marker-name" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
+    </div>`,
+    offset: new AMap.Pixel(offset, offset),
+  };
+}
+
+function showMapError(reason) {
+  const status = document.getElementById('mapStatus');
+  const base = '地点、照片和游玩计划仍可正常查看。';
+  const tips = {
+    nokey: '未配置高德地图密钥。请按 README 配置 Key + 安全密钥（scripts/setup_amap.py 或环境变量 AMAP_JS_KEY / AMAP_SECURITY_CODE）后重新生成；地点、照片和游玩计划仍可正常查看。',
+    script: '高德地图脚本加载失败（AMap 未定义）。请检查网络，或确认 JS API Key 字符串有效、平台类型为「Web端(JS API)」。',
+    timeout: '地图瓦片 10 秒内未能渲染，通常是密钥校验未通过。请依次检查：① 高德 Key 是否配有「成对的安全密钥 jscode」（JS API 2.0 必填，缺失/不配对则地图永远空白）；② 控制台该 Key 是否设置了域名白名单——本地 file:// 打开要求白名单留空；③ Key 平台类型必须是 Web端(JS API)。按 F12 看 Console 报错可定位。',
+    exception: '地图初始化抛出异常，请检查高德 Key、安全密钥与浏览器控制台报错。',
+  };
+  status.textContent = (tips[reason] || tips.timeout) + ' ' + base;
+  status.classList.add('visible');
+}
+
+function renderMapForCity(cityName) {
+  if (!map) return;
+  markers.forEach(m => m.setMap(null));
+  polylines.forEach(p => p.setMap(null));
+  markers = [];
+  polylines = [];
+  const pois = CITY_DATA[cityName] || [];
+  pois.forEach((p, i) => {
+    const mc = makeMarkerContent(i+1, colorOf(p), false, p.name);
+    const marker = new AMap.Marker({
+      position: [p.lng, p.lat],
+      content: mc.html,
+      offset: mc.offset,
+      extData: { idx: i },
+    });
+    marker.on('click', () => selectPoi(i));
+    marker.setMap(map);
+    markers.push(marker);
+  });
+  if (pois.length >= 2) {
+    const path = pois.map(p => new AMap.LngLat(p.lng, p.lat));
+    polylines.push(new AMap.Polyline({ path, strokeColor: THEME.primary, strokeWeight: 2, strokeOpacity: 0.5, strokeStyle: 'dashed', lineJoin: 'round', map }));
+  }
+  map.setCenter(centerForCity(cityName));
+  map.setZoom(12);
+}
+
+function initializeMap() {
+  if (typeof AMap === 'undefined') {
+    showMapError('script');
+    return;
+  }
+  try {
+    map = new AMap.Map('map', {
+      zoom: 11,
+      center: centerForCity(firstCity),
+      /* 自定义底图样式仅 WebGL(2.0) 渲染器支持，1.4.15 降级模式完全不传 mapStyle */
+      ...(window.__AMAP_VERSION === '2.0' ? { mapStyle: THEME.mapStyle } : {}),
+      viewMode: '2D',
+    });
+    /* 瓦片渲染看门狗：jscode 缺失/不配对时 Map 对象能创建但瓦片永不加载 */
+    map.on('complete', () => { window.__mapRendered = true; });
+    setTimeout(() => { if (!window.__mapRendered) showMapError('timeout'); }, 10000);
+    if (currentCity) renderMapForCity(currentCity);
+  } catch (error) {
+    console.error('AMap initialization failed', error);
+    map = null;
+    showMapError('exception');
+  }
+}
+
+/* 切换城市：重绘列表、路线、地图标记 */
+function switchCity(cityName) {
+  if (currentCity === cityName) return;
+  clearSelectedRoute();
+  currentCity = cityName;
+  applyCitySkin(cityName);
+  document.querySelectorAll('.city-tab').forEach(t => t.classList.toggle('active', t.dataset.city === cityName));
+  renderPoiList();
+  renderRoute();
+  currentPoiIdx = -1;
+  showGalleryEmpty();
+  showIntroEmpty();
+  renderMapForCity(cityName);
+}
+
+/* 渲染左侧景点列表 */
+function renderPoiList() {
+  const list = document.getElementById('poiList');
+  const pois = CITY_DATA[currentCity] || [];
+  list.innerHTML = pois.map((p, i) =>
+    `<div class="poi-item ${currentPoiIdx === i ? 'active' : ''}" data-idx="${i}" onclick="selectPoi(${i})">
+      <span class="poi-item-num" style="background:${colorOf(p)}">${i+1}</span>
+      <span class="poi-item-type">${categoryIcon(p)}</span>
+      <span class="poi-item-name"><span class="poi-item-category">${categoryLabel(p)}</span>${p.name}</span>
+      <span class="poi-item-day">${p.day ? 'Day ' + p.day : ''}</span>
+    </div>`).join('');
+}
+
+/* 更新地图标记高亮状态 */
+function updateMarker(idx) {
+  const pois = CITY_DATA[currentCity] || [];
+  markers.forEach((m, i) => {
+    const p = pois[i];
+    const isActive = (i === idx);
+    const mc = makeMarkerContent(i+1, colorOf(p), isActive, p.name);
+    m.setContent(mc.html);
+    m.setOffset(mc.offset);
+  });
+}
+
+/* 选中景点：更新高亮、显示照片和介绍、地图飞到点 */
+function selectPoi(idx) {
+  const pois = CITY_DATA[currentCity] || [];
+  if (!pois[idx]) return;
+  currentPoiIdx = idx;
+  const p = pois[idx];
+  document.querySelectorAll('.poi-item').forEach(el => el.classList.toggle('active', parseInt(el.dataset.idx) === idx));
+  updateMarker(idx);
+  showGallery(p);
+  showIntro(p);
+  if (map) {
+    map.setZoom(16);
+    map.setCenter([p.lng, p.lat]);
+  }
+  /* 联动：点击景点后滚动并高亮每日计划中的对应条目（切换时先清除上一次高亮） */
+  if (window.__flashEl) { window.__flashEl.classList.remove('flash'); window.__flashEl = null; }
+  const stopEl = document.querySelector(`#routeContent .timeline-stop[data-idx="${idx}"]`);
+  if (stopEl) {
+    stopEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    stopEl.classList.add('flash');
+    window.__flashEl = stopEl;
+    clearTimeout(window.__flashTimer);
+    window.__flashTimer = setTimeout(() => {
+      if (window.__flashEl === stopEl) { stopEl.classList.remove('flash'); window.__flashEl = null; }
+    }, 1800);
+  }
+}
+
+/* 显示景点照片：一行两张，1:1 比例。
+   优先展示 JSON 内静态图；若高德 Key 已配置，则实时用 PlaceSearch 拉取高德 CDN 实拍图（国内直连）覆盖。 */
+function showGallery(p) {
+  document.getElementById('galleryTitle').textContent = p.name;
+  const badge = document.getElementById('galleryBadge');
+  badge.textContent = categoryIcon(p) + ' ' + (p.meal_type || p.label || categoryLabel(p));
+  const c = colorOf(p);
+  badge.style.background = c + '20';
+  badge.style.color = c;
+  const grid = document.getElementById('galleryGrid');
+  const amapReady = (typeof AMap !== 'undefined');
+  if (p.photos && p.photos.length) {
+    grid.innerHTML = p.photos.map(url => `<img class="gallery-img" src="${url}" onclick="openLightbox('${url}')" onerror="this.style.display='none'">`).join('');
+  } else {
+    grid.innerHTML = '<div class="gallery-empty">' + (amapReady ? '正在从高德地图加载实拍图…' : '实拍图待配置高德 Key 后自动加载') + '</div>';
+  }
+  if (amapReady) enrichGalleryWithAmap(p, grid);
+}
+
+/* 用高德 PlaceSearch 拉取该 POI 的实拍图（aos-cdn-image.amap.com，国内可直连）。结果按名称缓存，避免重复请求。 */
+function enrichGalleryWithAmap(p, grid) {
+  if (window.__amapPhotoCache && window.__amapPhotoCache[p.name]) {
+    renderAmapPhotos(grid, window.__amapPhotoCache[p.name]);
+    return;
+  }
+  try {
+    AMap.plugin('AMap.PlaceSearch', function () {
+      const ps = new AMap.PlaceSearch({ city: currentCity || '', pageSize: 1, extensions: 'all' });
+      ps.search(amapQueryName(p), function (status, result) {
+        let urls = [];
+        try {
+          if (status === 'complete' && result.poiList && result.poiList.pois && result.poiList.pois.length) {
+            const poi = result.poiList.pois[0];
+            if (poi.photos && poi.photos.length) {
+              urls = poi.photos.map(function (ph) {
+                if (typeof ph === 'string') return ph;
+                return ph.url || (ph.getUrl ? ph.getUrl() : '');
+              }).filter(Boolean);
+            }
+          }
+        } catch (e) { urls = []; }
+        window.__amapPhotoCache = window.__amapPhotoCache || {};
+        window.__amapPhotoCache[p.name] = urls;
+        if (urls.length) renderAmapPhotos(grid, urls);
+        else if (!(p.photos && p.photos.length)) grid.innerHTML = '<div class="gallery-empty">高德暂未返回该地点照片</div>';
+      });
+    });
+  } catch (e) {
+    if (!(p.photos && p.photos.length)) grid.innerHTML = '<div class="gallery-empty">实拍图加载失败（需高德 Web端 Key）</div>';
+  }
+}
+
+function renderAmapPhotos(grid, urls) {
+  grid.innerHTML = urls.slice(0, 6).map(u => `<img class="gallery-img" src="${u}" onclick="openLightbox('${u}')" onerror="this.style.display='none'">`).join('') || '<div class="gallery-empty">暂无照片</div>';
+}
+
+/* 去掉 POI 名里的括号备注与分隔符，得到更适合高德 POI 检索的短名 */
+function amapQueryName(p) {
+  let n = (p.name || '').replace(/（[^）]*）/g, '').replace(/\([^)]*\)/g, '').replace(/[·•].*$/, '').trim();
+  return n || p.name;
+}
+
+function showGalleryEmpty() {
+  document.getElementById('galleryTitle').textContent = '选择景点查看照片';
+  document.getElementById('galleryBadge').textContent = '';
+  document.getElementById('galleryGrid').innerHTML = '<div class="gallery-empty">点击左侧景点查看照片</div>';
+}
+
+/* 显示景点介绍文字（含价格/建议游玩时间/地址元信息） */
+function showIntro(p) {
+  document.getElementById('introTitle').textContent = categoryIcon(p) + ' ' + p.name;
+  const meta = document.getElementById('introMeta');
+  meta.innerHTML = [
+    `<span class="intro-meta-item">🕐 ${p.start_time}–${p.end_time} · ${p.category === 'food' ? '用餐' : '游玩'}约${p.planned_duration}</span>`,
+    p.meal_type ? `<span class="intro-meta-item">${p.meal_type}</span>` : '',
+    p.price ? `<span class="intro-meta-item">💰 ${p.price}</span>` : '',
+    p.suggest ? `<span class="intro-meta-item">⏱️ ${p.suggest}</span>` : '',
+    p.booking ? `<span class="intro-meta-item" style="color:var(--highlight);background:var(--highlight)1A;font-weight:600">🎫 ${p.booking}</span>` : '',
+    p.address ? `<span class="intro-meta-item">📍 ${p.address}</span>` : '',
+  ].filter(Boolean).join('');
+  document.getElementById('introText').textContent = p.intro || '暂无介绍';
+  const review = document.getElementById('introReview');
+  review.textContent = p.review ? '综合评价：' + p.review : '';
+  review.style.display = p.review ? 'block' : 'none';
+}
+
+function showIntroEmpty() {
+  document.getElementById('introTitle').textContent = '景点介绍';
+  document.getElementById('introMeta').innerHTML = '';
+  document.getElementById('introText').textContent = '选择左侧景点或地图标记查看详细介绍。';
+  document.getElementById('introReview').textContent = '';
+  document.getElementById('introReview').style.display = 'none';
+}
+
+/* 打开灯箱大图 */
+function openLightbox(url) {
+  document.getElementById('lightboxImg').src = url;
+  document.getElementById('lightbox').style.display = 'flex';
+}
+
+/* 按天渲染可执行时间轴 */
+function renderRoute() {
+  const container = document.getElementById('routeContent');
+  const pois = CITY_DATA[currentCity] || [];
+  const plans = DAY_DATA.filter(plan => plan.city === currentCity).sort((a,b) => a.day - b.day);
+  const stay = ACCOMMODATION[currentCity];
+  const stayHtml = stay
+    ? `<div class="route-stay"><div class="route-stay-title">🏨 住宿范围建议</div><div class="route-stay-body">${stay}</div></div>`
+    : '';
+  container.innerHTML = stayHtml + plans.map(plan => {
+    const dayPois = pois.filter(p => p.day === plan.day);
+    let timeline = '';
+    dayPois.forEach((p, localIndex) => {
+      const poiIndex = pois.indexOf(p);
+      const kind = p.meal_type
+        ? `<span class="meal-pill">${p.meal_type}</span>`
+        : `<span class="timeline-kind">${categoryLabel(p)}</span>`;
+      timeline += `<div class="timeline-stop" data-idx="${poiIndex}" onclick="selectPoi(${poiIndex})">
+        <div class="timeline-clock">${p.start_time}–${p.end_time}</div>
+        <div class="timeline-icon" style="color:${colorOf(p)}">${categoryIcon(p)}</div>
+        <div>
+          <div class="timeline-name">${kind}${p.name}</div>
+          <div class="timeline-stay">${p.category === 'food' ? '用餐' : '游玩'}约 ${p.planned_duration}</div>
+        </div>
+      </div>`;
+      const next = dayPois[localIndex + 1];
+      if (next) {
+        const segment = ROUTE_DATA.find(s =>
+          s.city === currentCity && s.day === plan.day && s.from === p.name && s.to === next.name
+        );
+        if (segment) {
+          const routeIndex = ROUTE_DATA.indexOf(segment);
+          timeline += `<div class="timeline-travel" data-route-index="${routeIndex}" onclick="selectRouteSegmentByIndex(${routeIndex})">
+            <span>${segment.depart_time} 出发</span>
+            <span class="travel-mode">${segment.transport}</span>
+            <span class="travel-time">${segment.duration}</span>
+            <span>${segment.distance} · ${segment.arrival_time} 到达</span>
+          </div>`;
+        }
+      }
+    });
+    const lastPoi = dayPois[dayPois.length - 1];
+    const transfer = lastPoi && ROUTE_DATA.find(s =>
+      s.city === '跨城' && s.from_city === currentCity && s.from === lastPoi.name
+    );
+    if (transfer) {
+      const routeIndex = ROUTE_DATA.indexOf(transfer);
+      timeline += `<div class="timeline-transfer" data-route-index="${routeIndex}" onclick="selectRouteSegmentByIndex(${routeIndex})">
+        <span class="transfer-badge">跨城</span>
+        <strong>Day ${transfer.day} ${transfer.depart_time} ${transfer.from_city} → Day ${transfer.arrival_day} ${transfer.arrival_time} ${transfer.to_city}</strong>
+        <span class="travel-mode">${transfer.transport}</span>
+        <span class="travel-time">${transfer.duration}</span>
+        <span>${transfer.distance}</span>
+      </div>`;
+    }
+    return `<section class="route-day-block">
+      <div class="route-day-head">
+        <div class="route-day-title">Day ${plan.day}</div>
+        <div class="route-day-time">${plan.departure_time} 从${plan.departure_from}出发 · 预计 ${plan.end_time} 结束</div>
+      </div>
+      <div class="route-summary">${plan.summary}</div>
+      ${timeline}
+    </section>`;
+  }).join('');
+}
+
+/* 路线段交互：默认虚线总览，点击后按需查询并缓存真实路线 */
+function segmentPois(segment) {
+  const fromCity = segment.city === '跨城' ? segment.from_city : segment.city;
+  const toCity = segment.city === '跨城' ? segment.to_city : segment.city;
+  return {
+    fromPoi: (CITY_DATA[fromCity] || []).find(p => p.name === segment.from),
+    toPoi: (CITY_DATA[toCity] || []).find(p => p.name === segment.to),
+  };
+}
+
+function recommendedRouteMode(transport) {
+  const text = String(transport || '').toLowerCase();
+  if (/(公交|地铁|轻轨|轨道|巴士|bus|metro|transit)/.test(text)) return 'transit';
+  if (/(驾车|自驾|打车|出租|网约|汽车|driv|taxi)/.test(text)) return 'driving';
+  if (/(骑行|自行车|单车|bicycl|rid)/.test(text)) return 'riding';
+  return 'walking';
+}
+
+function setTimelineRouteActive(index) {
+  document.querySelectorAll('[data-route-index]').forEach(node => {
+    node.classList.toggle('active', Number(node.dataset.routeIndex) === index);
+  });
+}
+
+function setRouteStatus(message, isError) {
+  const status = document.getElementById('routeControlStatus');
+  status.textContent = message || '';
+  status.classList.toggle('error', Boolean(isError));
+}
+
+function setRouteButtons(mode, loading) {
+  document.querySelectorAll('[data-route-mode]').forEach(button => {
+    const active = button.dataset.routeMode === mode;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    button.disabled = Boolean(loading);
+  });
+}
+
+function showRouteControls(segment, crossCity) {
+  const controls = document.getElementById('routeControls');
+  controls.classList.add('visible');
+  controls.classList.toggle('cross-city', Boolean(crossCity));
+  document.getElementById('routeControlTitle').textContent = `${segment.from} → ${segment.to}`;
+}
+
+function clearRouteLayers() {
+  if (routeHighlightLine) {
+    routeHighlightLine.setMap(null);
+    routeHighlightLine = null;
+  }
+  actualRouteLines.forEach(line => line.setMap(null));
+  actualRouteLines = [];
+}
+
+function clearSelectedRoute() {
+  routeRequestVersion += 1;
+  clearRouteLayers();
+  activeRouteIndex = -1;
+  activeRouteMode = null;
+  setTimelineRouteActive(-1);
+  setRouteButtons(null, false);
+  setRouteStatus('', false);
+  const controls = document.getElementById('routeControls');
+  controls.classList.remove('visible', 'cross-city');
+}
+
+function fitRouteCoordinates(coordinates) {
+  if (!map || !coordinates.length) return;
+  const lngs = coordinates.map(point => point[0]);
+  const lats = coordinates.map(point => point[1]);
+  const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+  const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+  if (minLng === maxLng && minLat === maxLat) {
+    map.setCenter(coordinates[0]);
+    map.setZoom(16);
+    return;
+  }
+  map.setBounds(new AMap.Bounds(
+    new AMap.LngLat(minLng, minLat),
+    new AMap.LngLat(maxLng, maxLat)
+  ));
+  if (map.getZoom() > 16) map.setZoom(16);
+}
+
+function highlightSegment(segment) {
+  if (!map) return false;
+  clearRouteLayers();
+  const { fromPoi, toPoi } = segmentPois(segment);
+  if (!fromPoi || !toPoi) return false;
+  const pois = CITY_DATA[currentCity] || [];
+  pois.forEach((p, i) => {
+    const marker = markers[i];
+    if (!marker) return;
+    const active = p.name === segment.from || p.name === segment.to;
+    const content = makeMarkerContent(i+1, colorOf(p), active, p.name);
+    marker.setContent(content.html);
+    marker.setOffset(content.offset);
+  });
+  const path = [[fromPoi.lng, fromPoi.lat], [toPoi.lng, toPoi.lat]];
+  routeHighlightLine = new AMap.Polyline({
+    path: path.map(point => new AMap.LngLat(point[0], point[1])),
+    strokeColor: THEME.highlight,
+    strokeWeight: 4,
+    strokeOpacity: 0.82,
+    strokeStyle: 'dashed',
+    lineJoin: 'round',
+    map,
+  });
+  fitRouteCoordinates(path);
+  return true;
+}
+
+function normalizeRoutePoint(point) {
+  let lng, lat;
+  if (Array.isArray(point)) [lng, lat] = point;
+  else if (point && typeof point.getLng === 'function') {
+    lng = point.getLng();
+    lat = point.getLat();
+  } else if (point && typeof point === 'object') {
+    lng = point.lng;
+    lat = point.lat;
+  } else if (typeof point === 'string') {
+    [lng, lat] = point.split(',');
+  }
+  lng = Number(lng);
+  lat = Number(lat);
+  return Number.isFinite(lng) && Number.isFinite(lat) ? [lng, lat] : null;
+}
+
+function collectRoutePaths(node, paths, seen) {
+  if (!node) return;
+  if (Array.isArray(node)) {
+    const points = node.map(normalizeRoutePoint).filter(Boolean);
+    if (points.length >= 2) {
+      paths.push(points);
+      return;
+    }
+    node.forEach(item => collectRoutePaths(item, paths, seen));
+    return;
+  }
+  if (typeof node !== 'object' || seen.has(node)) return;
+  seen.add(node);
+  const directPath = Array.isArray(node.path)
+    ? node.path.map(normalizeRoutePoint).filter(Boolean)
+    : typeof node.path === 'string'
+      ? node.path.split(';').map(normalizeRoutePoint).filter(Boolean)
+      : [];
+  if (directPath.length >= 2) {
+    paths.push(directPath);
+    return;
+  }
+  Object.keys(node).forEach(key => {
+    if (key !== 'path') collectRoutePaths(node[key], paths, seen);
+  });
+}
+
+function routeResultSummary(mode, result, segment) {
+  const root = mode === 'transit'
+    ? result && result.plans && result.plans[0]
+    : result && result.routes && result.routes[0];
+  const seconds = Number(root && (root.time || root.duration));
+  const meters = Number(root && root.distance);
+  const parts = [ROUTE_MODES[mode].label];
+  if (Number.isFinite(seconds) && seconds > 0) parts.push(`约${Math.ceil(seconds / 60)}分钟`);
+  else if (segment.duration) parts.push(segment.duration);
+  if (Number.isFinite(meters) && meters > 0) {
+    parts.push(meters >= 1000 ? `${(meters / 1000).toFixed(1)}公里` : `${Math.round(meters)}米`);
+  } else if (segment.distance) parts.push(segment.distance);
+  return parts.join(' · ');
+}
+
+function extractRouteEntry(mode, result, segment) {
+  const root = mode === 'transit'
+    ? result && result.plans && result.plans[0]
+    : result && result.routes && result.routes[0];
+  const paths = [];
+  collectRoutePaths(root, paths, new WeakSet());
+  if (!paths.length) throw new Error('未返回可绘制的路线');
+  return { paths, summary:routeResultSummary(mode, result, segment) };
+}
+
+function loadRouteConstructor(mode) {
+  if (routePlanners.has(mode)) return routePlanners.get(mode);
+  const config = ROUTE_MODES[mode];
+  const promise = new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('路线插件加载超时')), 12000);
+    try {
+      AMap.plugin(config.plugin, () => {
+        clearTimeout(timeout);
+        const Constructor = AMap[config.ctor];
+        if (typeof Constructor !== 'function') reject(new Error('路线插件不可用'));
+        else resolve(Constructor);
+      });
+    } catch (error) {
+      clearTimeout(timeout);
+      reject(error);
+    }
+  });
+  routePlanners.set(mode, promise);
+  promise.catch(() => routePlanners.delete(mode));
+  return promise;
+}
+
+async function queryRoute(segment, mode) {
+  const { fromPoi, toPoi } = segmentPois(segment);
+  if (!fromPoi || !toPoi) throw new Error('缺少路线端点');
+  const Constructor = await loadRouteConstructor(mode);
+  const options = {};
+  if (mode === 'transit') {
+    options.city = segment.city;
+    if (AMap.TransferPolicy && AMap.TransferPolicy.LEAST_TIME != null) {
+      options.policy = AMap.TransferPolicy.LEAST_TIME;
+    }
+  }
+  const planner = new Constructor(options);
+  const result = await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('路线查询超时')), 18000);
+    planner.search(
+      new AMap.LngLat(fromPoi.lng, fromPoi.lat),
+      new AMap.LngLat(toPoi.lng, toPoi.lat),
+      (status, data) => {
+        clearTimeout(timeout);
+        if (status === 'complete') resolve(data);
+        else reject(new Error((data && (data.info || data.message)) || '未找到路线'));
+      }
+    );
+  });
+  return extractRouteEntry(mode, result, segment);
+}
+
+function routeCacheKey(segment, mode) {
+  const { fromPoi, toPoi } = segmentPois(segment);
+  return [segment.city, fromPoi.lng, fromPoi.lat, toPoi.lng, toPoi.lat, mode].join('|');
+}
+
+async function cachedRoute(segment, mode) {
+  const key = routeCacheKey(segment, mode);
+  if (routeCache.has(key)) return routeCache.get(key);
+  const pending = queryRoute(segment, mode);
+  routeCache.set(key, pending);
+  try {
+    const entry = await pending;
+    routeCache.set(key, entry);
+    return entry;
+  } catch (error) {
+    routeCache.delete(key);
+    throw error;
+  }
+}
+
+function drawActualRoute(entry, mode) {
+  if (routeHighlightLine) {
+    routeHighlightLine.setMap(null);
+    routeHighlightLine = null;
+  }
+  actualRouteLines.forEach(line => line.setMap(null));
+  polylines.forEach(line => line.setMap(null));
+  const color = ROUTE_MODES[mode].color;
+  actualRouteLines = entry.paths.map(path => new AMap.Polyline({
+    path: path.map(point => new AMap.LngLat(point[0], point[1])),
+    strokeColor: color,
+    strokeWeight: 6,
+    strokeOpacity: 0.88,
+    strokeStyle: 'solid',
+    lineJoin: 'round',
+    lineCap: 'round',
+    map,
+  }));
+  fitRouteCoordinates(entry.paths.flat());
+}
+
+async function switchRouteMode(mode) {
+  const segment = ROUTE_DATA[activeRouteIndex];
+  if (!segment || segment.city === '跨城' || !ROUTE_MODES[mode] || !map) return;
+  activeRouteMode = mode;
+  const version = ++routeRequestVersion;
+  highlightSegment(segment);
+  setRouteButtons(mode, true);
+  setRouteStatus(`正在查询${ROUTE_MODES[mode].label}实际路线…`, false);
+  try {
+    const entry = await cachedRoute(segment, mode);
+    if (version !== routeRequestVersion || activeRouteIndex < 0 || activeRouteMode !== mode) return;
+    drawActualRoute(entry, mode);
+    setRouteStatus(entry.summary, false);
+  } catch (error) {
+    if (version !== routeRequestVersion) return;
+    setRouteStatus(`${ROUTE_MODES[mode].label}路线不可用：${error.message}`, true);
+  } finally {
+    if (version === routeRequestVersion) setRouteButtons(mode, false);
+  }
+}
+
+function selectRouteSegmentByIndex(index) {
+  const segment = ROUTE_DATA[index];
+  if (!segment || !map) return;
+  clearSelectedRoute();
+  activeRouteIndex = index;
+  setTimelineRouteActive(index);
+  const crossCity = segment.city === '跨城';
+  showRouteControls(segment, crossCity);
+  if (!highlightSegment(segment)) {
+    setRouteStatus('路线端点不可用', true);
+    return;
+  }
+  if (crossCity) {
+    setRouteStatus('跨城交通按行程中的车站与交通信息执行', false);
+    return;
+  }
+  const recommended = recommendedRouteMode(segment.transport);
+  setRouteStatus(`推荐${ROUTE_MODES[recommended].label}`, false);
+  switchRouteMode(recommended);
+}
+
+function resetMapOverview() {
+  const city = currentCity;
+  clearSelectedRoute();
+  if (map && city) renderMapForCity(city);
+}
+
+buildBadges();
+buildWeather();
+buildTabs();
+buildLegend();
+if (firstCity) switchCity(firstCity);
+if (window.__AMAP_NOKEY) { showMapError('nokey'); } else { initializeMap(); }
+</script>
+<style>
+  .amap-layer-switch{position:absolute;top:12px;right:12px;z-index:999;display:flex;border-radius:6px;overflow:hidden;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.28);font-size:12px;line-height:1;}
+  .amap-layer-switch button{border:0;background:#fff;color:#404040;padding:7px 14px;cursor:pointer;font-size:12px;font-family:inherit;}
+  .amap-layer-switch button + button{border-left:1px solid #eee;}
+  .amap-layer-switch button.active{background:#1677ff;color:#fff;}
+  .amap-controls .amap-control.amap-scalecontrol{top:auto!important;right:auto!important;bottom:44px!important;left:12px!important;}
+
+  .timeline-stop.flash{background:#E8F0FE!important;box-shadow:0 0 0 2px #1677ff inset;border-radius:8px;}
+</style>
+<script>
+(function(){
+  function build(){
+    if (typeof AMap === 'undefined' || typeof map === 'undefined' || !map) return false;
+    /* 比例尺：左下角（AMap.Scale 为懒加载控件，先直取、失败再走 plugin，全程 try/catch） */
+    if (!window.__scaleAdded) {
+      var tryScale = function () {
+        if (!map || window.__scaleAdded || typeof AMap.Scale !== 'function') return false;
+        try {
+          map.addControl(new AMap.Scale({ position: 'LB', offset: new AMap.Pixel(10, 36) }));
+          window.__scaleAdded = true;
+          return true;
+        } catch (e) { return false; }
+      };
+      if (!tryScale()) { try { AMap.plugin('AMap.Scale', tryScale); } catch (e) {} }
+    }
+    /* 图层切换：右上角 矢量/卫星（真实影像+路网） */
+    if (window.__layerSwitchBuilt) return true;
+    var container = map.getContainer();
+    if (!container) return false;
+    var div = document.createElement('div');
+    div.className = 'amap-layer-switch';
+    div.innerHTML = '<button type="button" data-layer="default" class="active">默认</button><button type="button" data-layer="vector">矢量</button><button type="button" data-layer="satellite">卫星</button>';
+    container.appendChild(div);
+    var satLayer = null, roadLayer = null;
+    function layerOnMap(l) { try { return !!l.getMap(); } catch (e) { return false; } }
+    window.__mapLayerMode = 'default';
+    function setLayer(mode) {
+      if (!map) return;
+      if (mode === 'satellite') {
+        if (!satLayer) { try { satLayer = new AMap.TileLayer.Satellite(); } catch (e) {} }
+        if (!roadLayer) { try { roadLayer = new AMap.TileLayer.RoadNet(); } catch (e) {} }
+        if (satLayer && !layerOnMap(satLayer)) map.addLayer(satLayer);
+        if (roadLayer && !layerOnMap(roadLayer)) map.addLayer(roadLayer);
+      } else {
+        if (satLayer && layerOnMap(satLayer)) map.removeLayer(satLayer);
+        if (roadLayer && layerOnMap(roadLayer)) map.removeLayer(roadLayer);
+      }
+      /* 地点间虚线路线：仅「默认」模式显示，矢量/卫星下隐藏，避免底图杂乱 */
+      var lines = (typeof polylines !== 'undefined') ? polylines : [];
+      for (var li = 0; li < lines.length; li++) {
+        if (mode === 'default') lines[li].setMap(map);
+        else lines[li].setMap(null);
+      }
+      window.__mapLayerMode = mode;
+      var buttons = div.querySelectorAll('button');
+      for (var i = 0; i < buttons.length; i++) buttons[i].classList.toggle('active', buttons[i].dataset.layer === mode);
+    }
+    /* 切换城市重绘后，按当前图层模式应用虚线显隐 */
+    if (!window.__renderMapWrapped && typeof renderMapForCity === 'function') {
+      var __origRender = renderMapForCity;
+      renderMapForCity = function (cityName) {
+        var __r = __origRender.apply(this, arguments);
+        if (window.__mapLayerMode && window.__mapLayerMode !== 'default' && typeof polylines !== 'undefined') {
+          for (var __li = 0; __li < polylines.length; __li++) polylines[__li].setMap(null);
+        }
+        return __r;
+      };
+      window.__renderMapWrapped = true;
+    }
+    div.addEventListener('click', function (ev) {
+      var btn = ev.target && ev.target.closest ? ev.target.closest('button') : null;
+      if (btn && btn.dataset.layer) setLayer(btn.dataset.layer);
+    });
+    window.__amapSetLayer = setLayer;
+    window.__layerSwitchBuilt = true;
+    return true;
+  }
+  if (!build()) {
+    var tries = 0;
+    var timer = setInterval(function () {
+      tries++;
+      if (build() || tries > 50) clearInterval(timer);
+    }, 200);
+  }
+})();
+</script>
+</body>
+</html>

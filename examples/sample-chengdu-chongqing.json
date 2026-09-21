@@ -1,0 +1,75 @@
+{
+  "title": "成都&重庆双城2日游（示例）",
+  "subtitle": "示例行程 · 城市主题背景换肤演示",
+  "start_date": "2026-10-01",
+  "cities": ["成都", "重庆"],
+  "city_centers": {"成都": [104.085857, 30.697403], "重庆": [106.567257, 29.563037]},
+  "accommodation": {
+    "成都": "推荐住春熙路-太古里片区：地铁2/3号线交汇，去熊猫基地、高铁站都直达；夜间可逛太古里但临街酒店偏吵。",
+    "重庆": "推荐住解放碑-较场口片区：轻轨1/2号线交汇，夜游洪崖洞步行可达；江景房加价明显，预算敏感选七星岗。"
+  },
+  "theme_override": {
+    "palette": "chengdu-bamboo",
+    "paletteReason": "竹林青+熊猫黑白呼应成都城市性格；重庆切换为火锅红夜景",
+    "landmark": "安顺廊桥",
+    "landmarkEmoji": "🌉",
+    "tagline": "竹影蓉城·烟火慢生活",
+    "cityThemes": {
+      "成都": {
+        "primary": "#1E7F5C",
+        "heroImage": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='1920' height='1080'><rect width='1920' height='1080' fill='%232E8B57'/><text x='960' y='560' font-size='140' text-anchor='middle' fill='white' opacity='.85'>🐼 成都 · 示例背景图</text></svg>",
+        "ink": "#14382B",
+        "inkSoft": "rgba(20,56,43,.72)",
+        "chipBg": "rgba(13,43,32,.52)",
+        "landmark": "大熊猫繁育研究基地",
+        "landmarkEmoji": "🐼",
+        "tagline": "竹影蓉城·熊猫故里"
+      },
+      "重庆": {
+        "primary": "#B3272D",
+        "heroImage": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='1920' height='1080'><rect width='1920' height='1080' fill='%238F1D22'/><text x='960' y='560' font-size='140' text-anchor='middle' fill='white' opacity='.85'>🏮 重庆 · 示例背景图</text></svg>",
+        "ink": "#FFF4EA",
+        "inkSoft": "rgba(255,244,234,.78)",
+        "chipBg": "rgba(58,7,12,.55)",
+        "landmark": "洪崖洞",
+        "landmarkEmoji": "🏮",
+        "tagline": "山城雾都·火锅江湖"
+      }
+    }
+  },
+  "pois": {
+    "成都": [
+      {"name": "成都大熊猫繁育研究基地", "lng": 104.138176, "lat": 30.740573, "category": "scenic", "day": 1, "start_time": "07:30", "end_time": "11:30", "address": "熊猫大道1375号",
+       "photos": ["data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='800'><rect width='800' height='800' fill='%233C9A6B'/><text x='400' y='420' font-size='80' text-anchor='middle' fill='white'>🐼 示例图</text></svg>"],
+       "intro": "全球最大的大熊猫圈养繁育基地，幼年熊猫上午最活跃，太阳产房/月亮产房必看。",
+       "review": "建议7:30准时入园，盛夏熊猫多在室内。",
+       "price": "¥55", "suggest": "3.5小时", "booking": "官方公众号提前1~7天预约", "planned_duration": "4小时"},
+      {"name": "宽窄巷子景区", "lng": 104.053307, "lat": 30.663869, "category": "attraction", "day": 1, "start_time": "13:30", "end_time": "16:30", "address": "少城街道金河路口宽窄巷子",
+       "photos": ["data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='800'><rect width='800' height='800' fill='%236B5B45'/><text x='400' y='420' font-size='80' text-anchor='middle' fill='white'>🏯 示例图</text></svg>"],
+       "intro": "清代川西民居风格的宽巷子、窄巷子、井巷子历史街区。",
+       "review": "适合慢逛喝茶，网红店排队久。",
+       "price": "免费", "suggest": "3小时", "planned_duration": "3小时"}
+    ],
+    "重庆": [
+      {"name": "洪崖洞民俗风貌区", "lng": 106.578869, "lat": 29.562144, "category": "attraction", "day": 2, "start_time": "19:00", "end_time": "21:00", "address": "嘉陵江滨江路88号",
+       "photos": ["data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='800'><rect width='800' height='800' fill='%23B3272D'/><text x='400' y='420' font-size='80' text-anchor='middle' fill='white'>🏮 示例图</text></svg>"],
+       "intro": "依山而建的吊脚楼建筑群，夜景被誉为现实版《千与千寻》。",
+       "review": "夜景最佳机位在千厮门大桥，亮灯到23:00。",
+       "price": "免费", "suggest": "2小时", "planned_duration": "2小时"},
+      {"name": "解放碑步行街", "lng": 106.577166, "lat": 29.558196, "category": "attraction", "day": 2, "start_time": "16:00", "end_time": "18:30", "address": "渝中区解放碑",
+       "photos": ["data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='800'><rect width='800' height='800' fill='%234A5A8A'/><text x='400' y='420' font-size='80' text-anchor='middle' fill='white'>🏙️ 示例图</text></svg>"],
+       "intro": "重庆地标与最繁华商圈，八一路好吃街就在旁边。",
+       "review": "人多，注意随身物品；附近积水潭/八一好吃街适合晚餐。",
+       "price": "免费", "suggest": "2.5小时", "planned_duration": "2.5小时"}
+    ]
+  },
+  "days": [
+    {"city": "成都", "day": 1, "departure_time": "07:30", "departure_from": "酒店", "end_time": "19:00", "summary": "上午熊猫基地看幼年熊猫，下午宽窄巷子喝茶。"},
+    {"city": "重庆", "day": 2, "departure_time": "08:00", "departure_from": "高铁成都东站", "end_time": "21:30", "summary": "上午高铁抵渝，下午解放碑，傍晚洪崖洞夜景。"}
+  ],
+  "routes": [
+    {"from": "成都大熊猫繁育研究基地", "to": "宽窄巷子景区", "depart_time": "11:30", "arrival_time": "13:10", "transport": "地铁3号线→4号线", "duration": "约40分钟", "distance": "约14公里", "city": "成都", "day": 1},
+    {"from": "成都东站", "to": "解放碑步行街", "depart_time": "08:00", "arrival_time": "14:30", "transport": "高铁G8507→轨道1号线", "duration": "约2.5小时", "distance": "约330公里", "city": "跨城", "from_city": "成都", "to_city": "重庆", "arrival_day": 2, "day": 2},
+    {"from": "解放碑步行街", "to": "洪崖洞民俗风貌区", "depart_time": "18:30", "arrival_time": "18:50", "transport": "步行", "duration": "约20分钟", "distance": "约1公里", "city": "重庆", "day": 2}
+  ]
+}

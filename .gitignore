@@ -1,0 +1,16 @@
+# 密钥与私密配置 —— 绝不能提交
+config.json
+*.key
+.env
+
+# 本地产物与备份
+*.bak
+smoke.html
+*.html
+!assets/template.html
+__pycache__/
+*.pyc
+
+# 系统文件
+.DS_Store
+Thumbs.db
